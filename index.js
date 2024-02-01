@@ -11,6 +11,7 @@ const dotenv = require("dotenv"); // Dotenv for loading environment variables fr
 dotenv.config(); // Loading environment variables from a .env file into process.env
 const dbUsername = process.env.DB_USERNAME;
 const dbPassword = process.env.DB_PASSWORD;
+const dbDelete = process.env.DB_DELETE;
 
 app.use(express.json()); // Adding middleware to parse JSON data in the request body
 app.use(cors()); // Adding CORS middleware to allow cross-origin requests
@@ -46,8 +47,6 @@ app.post("/uploads", upload.single("product"), ( req, res ) => {
 		image_url: `http://localhost:${port}/images/${req.file.filename}`
 	})
 });
-
-
 
 // Schema for Creating Products
 
@@ -87,56 +86,17 @@ const Product = mongoose.model("Product", {
 
 });
 
-// const CounterSchema = new mongoose.Schema({
-// 	_id: { db: String, coll: String },
-// 	seq_value: Number,
-//   });
-
-//   const Counter = mongoose.model('Counter', CounterSchema);
-
-// app.post("/addproduct", async (req, res) => {
-// 	try {
-// 		// Get the current value of seq_value from the counters collection
-// 		// const counter = await Counter.findOneAndUpdate(
-// 		// 	{ _id: { db: "e-commerce", coll: "products" } },
-// 		// 	{ $inc: { seq_value: 1 } },
-// 		// 	{ new: true }
-// 		// );
-
-// 		const product = new Product({
-// 			// id: counter.seq_value,
-
-// 			name: req.body.name,
-// 			image: req.body.image,
-// 			category: req.body.category,
-// 			new_price: req.body.new_price,
-// 			old_price: req.body.old_price,
-// 			date: req.body.date,
-// 			available: req.body.available,
-// 		});
-
-// 		// Save the product to the database
-// 		await product.save();
-
-// 		res.json({
-// 			success: 1,
-// 			message: "Product added successfully",
-// 			id: product.id,
-// 		});
-// 	} catch (error) {
-// 		res.status(500).json({
-// 			success: 0,
-// 			message: "Failed to add product",
-// 			error: error.message,
-// 		});
-// 	}
-// });
-
-
-
+// Add Product
 app.post("/addproduct", async( req, res ) => {
 
-	let products = await Product.find({});
+	// Validate user inputs
+	if (!req.body.name || !req.body.image || !req.body.category || !req.body.old_price || !req.body.new_price) {
+		return res.status(400).json({ success: 0, message: 'Missing required fields' });
+	}
+	let products = await Product.find({}).catch((error) => {
+		console.log(error);
+		return res.status(500).json({ success: 0, message: error.message });
+	});
 
 	let id;
 	if(products.length > 0) {
@@ -153,43 +113,102 @@ app.post("/addproduct", async( req, res ) => {
 		name: req.body.name,
 		image: req.body.image,
 		category: req.body.category,
-		new_price: req.body.new_price,
 		old_price: req.body.old_price,
+		new_price: req.body.new_price,
 	});
 
-	console.log(product);
-	await product.save();
-	console.log("Saved");
+	await product.save().catch( (error) => {
+		console.log(error);
+		return res.status(500).json({ success: 0, message: error.message });
+	} );
+
 	res.json({
 		success: 1,
 		generated_id: product._id,
 		id: product.id,
 		name: product.name,
 	})
+
+	console.log(`Saved: ${product._id} - ${product.id} - ${product.name}`);
 })
 
-// app.delete("/deleteallproducts", async (req, res) => {
-// 	try {
-// 	  await Product.deleteMany({});
-// 	  res.json({
-// 		success: 1,
-// 		message: "All products deleted successfully",
-// 	  });
-// 	} catch (error) {
-// 	  res.status(500).json({
-// 		success: 0,
-// 		message: "Failed to delete products",
-// 		error: error.message,
-// 	  });
-// 	}
-//   });
+// Delete All Products
+app.delete("/deleteallproducts", async (req, res) => {
+	try {
+		const passwordForDelete = req.body.password;
 
+		if (passwordForDelete === dbDelete) {
+			await Product.deleteMany({}).catch( (error) => {
+				console.log(error);
+				return res.status(500).json({ success: 0, message: error.message });
+			});
+			res.json({
+				success: 1,
+				message: "All products deleted successfully",
+			});
+		} else {
+			return res.status(401).json({ success: 0, message: "Unauthorized access deleting all products" });
+		}
+	} catch (error) {
+		console.log(error);
+		res.status(500).json({
+			success: 0, message: "Failed to delete products", error: error.message });
+	}
+});
+
+// Delete Product by ID
+app.delete("/removeproduct", async ( req, res ) => {
+
+	if (!req.body.id) {
+		return res.status(400).json({ success: 0, message: "Missing required fields" });
+	}
+
+	let product = await Product.findOneAndDelete({ id: req.body.id }).catch( error => {
+		console.log(error);
+		return res.status(500).json({ success: 0, message: error.message });
+	});
+
+	if(!product) {
+		console.log(`Product id: ${req.body.id} not found, cannot delete.`);
+		return res.status(404).json({ success: false,	message: "Product not found" });
+	}
+	console.log(`Removed: ${req.body.id}`);
+	return res.json({
+		success: true,
+		id: req.body.id,
+		message: "Product deleted successfully",
+	})
+})
+
+// Get All Products
+app.get("/allproducts", async ( req, res ) => {
+	const allProducts = await Product.find({}).catch( error => {
+		console.log(error);
+		return res.status(500).json({ success: 0, message: error.message });
+	});
+
+	if (!allProducts) {
+		return res.status(404).json({ success: 0, message: "Unknown error fetching all products" });
+	}
+
+	if(allProducts.length === 0) {
+		return res.status(404).json({ success: 0, message: "No products found" });
+	}
+
+	console.log(`All products fetched: ${allProducts.length} products`);
+	// console.log(allProducts.map((product) => `id: ${product.id}: ${product.name}`));
+	res.send(allProducts);
+})
 
 app.listen(port, (error) => {
-	if(!error) {
+	if (!error) {
 		console.log(`Server is running on port: ${port}`);
 	} else {
-		console.log(`Error occurred: ${error}`);
+		console.log("Server failed to start");
 	}
-})
+});
 
+process.on("uncaughtException", (error) => {
+	console.log(error);
+	process.exit(1);
+});
