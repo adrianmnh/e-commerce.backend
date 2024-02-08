@@ -242,7 +242,6 @@ app.get("/allproducts", async (req, res) => {
 
 
 // Schema Creating for User model
-
 const User = mongoose.model("User", {
 	name: {
 		type: String,
@@ -279,7 +278,7 @@ app.post('/signup', async ( req, res ) => {
 	});
 
 	if(check) {
-		return res.status(400).json({ success: 0, message: "Email already exists" });
+		return res.status(400).json({ success: 0, message: "Email is already in use" });
 	}
 	let cart = {};
 
@@ -326,31 +325,40 @@ app.post('/login', async ( req, res ) => {
 		return res.status(500).json({ success: 0, message: error.message });
 	})
 
-	if(user) {
-		const passCompare = req.body.password === user.password;
-		if(passCompare) {
-			const data = {
-				user: {
-					id: user.id
-				}
-			}
-			const token = jwt.sign(data, 'secret_ecommm');
-			res.json({success:1, token})
-		}
-		else {
-			return res.status(400).json({ success: 0, message: "Invalid password" })
-		}
-	}
-	else {
+	if(!user){
 		return res.status(400).json({ success: 0, message: "User not found" })
 	}
+	const passCompare = req.body.password === user.password;
+	if(!passCompare) {
+		return res.status(400).json({ success: 0, message: "Invalid password" })
+	}
+	const data = {
+		user: {
+			id: user.id
+		}
+	}
+	const token = jwt.sign(data, 'secret_ecomm');
+	res.json({success:1, token})
+
+	// if(user) {
+	// 	const passCompare = req.body.password === user.password;
+	// 	if(passCompare) {
+	// 		const data = {
+	// 			user: {
+	// 				id: user.id
+	// 			}
+	// 		}
+	// 		const token = jwt.sign(data, 'secret_ecommm');
+	// 		res.json({success:1, token})
+	// 	}
+	// 	else {
+	// 		return res.status(400).json({ success: 0, message: "Invalid password" })
+	// 	}
+	// }
+	// else {
+	// 	return res.status(400).json({ success: 0, message: "User not found" })
+	// }
 });
-
-
-
-
-
-
 
 
 
