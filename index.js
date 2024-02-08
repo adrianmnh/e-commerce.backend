@@ -1,5 +1,6 @@
-const port = 4000;
+const port = 443;
 
+const https = require('https');
 const express = require("express"); // Express framework for building web applications
 const app = express(); // Creating an instance of the Express application
 const mongoose = require("mongoose"); // Mongoose for MongoDB database connection and object modeling
@@ -9,10 +10,19 @@ const path = require("path"); // Path module for working with file and directory
 const cors = require("cors"); // CORS middleware for enabling cross-origin resource sharing
 const dotenv = require("dotenv"); // Dotenv for loading environment variables from a .env file into process.env
 const fs = require('fs'); // File System module for working with the file system
+
 dotenv.config(); // Loading environment variables from a .env file into process.env
+
 const dbUsername = process.env.DB_USERNAME;
 const dbPassword = process.env.DB_PASSWORD;
 const dbDelete = process.env.DB_DELETE;
+
+const options = {
+	key: fs.readFileSync('/etc/letsencrypt/live/backend.ecomm.adriannyc.dev/privkey.pem'),
+	cert: fs.readFileSync('/etc/letsencrypt/live/backend.ecomm.adriannyc.dev/fullchain.pem')
+	// key: fs.readFileSync('./tmp/key.pem'),
+	// cert: fs.readFileSync('./tmp/cert.pem')
+};
 
 app.use(express.json()); // Adding middleware to parse JSON data in the request body
 app.use(cors()); // Adding CORS middleware to allow cross-origin requests
@@ -266,18 +276,18 @@ const User = mongoose.model("User", {
 })
 
 // Creating Endpoint for Registering Users
-app.post('/signup', async ( req, res ) => {
+app.post('/signup', async (req, res) => {
 
 	if (!req.body.username || !req.body.email || !req.body.password) {
 		return res.status(400).json({ success: 0, message: "Missing required fields" });
 	}
 
-	let check = await User.findOne({ email: req.body.email }).catch( (error) => {
+	let check = await User.findOne({ email: req.body.email }).catch((error) => {
 		console.log(error)
 		return res.status(500).json({ success: 0, message: error.message });
 	});
 
-	if(check) {
+	if (check) {
 		return res.status(400).json({ success: 0, message: "Email is already in use" });
 	}
 	let cart = {};
@@ -296,7 +306,7 @@ app.post('/signup', async ( req, res ) => {
 	await user.save().catch((error) => {
 		console.log(error);
 		return res.status(500).json({ success: 0, message: error.message });
-	}).then( res => {
+	}).then(res => {
 		console.log(`User: ${user.email} saved successfully`);
 	})
 
@@ -310,26 +320,26 @@ app.post('/signup', async ( req, res ) => {
 
 	const token = jwt.sign(data, 'secret_ecomm');
 
-	res.json({success: 1, token})
+	res.json({ success: 1, token })
 })
 
 
 // Creating Endpoint for User Login
-app.post('/login', async ( req, res ) => {
+app.post('/login', async (req, res) => {
 	if (!req.body.email || !req.body.password) {
 		return res.status(400).json({ success: 0, message: "Missing required fields" })
 	}
 
-	let user = await User.findOne({ email: req.body.email }).catch( (error) => {
+	let user = await User.findOne({ email: req.body.email }).catch((error) => {
 		console.log(error)
 		return res.status(500).json({ success: 0, message: error.message });
 	})
 
-	if(!user){
+	if (!user) {
 		return res.status(400).json({ success: 0, message: "User not found" })
 	}
 	const passCompare = req.body.password === user.password;
-	if(!passCompare) {
+	if (!passCompare) {
 		return res.status(400).json({ success: 0, message: "Invalid password" })
 	}
 	const data = {
@@ -338,7 +348,7 @@ app.post('/login', async ( req, res ) => {
 		}
 	}
 	const token = jwt.sign(data, 'secret_ecomm');
-	res.json({success:1, token})
+	res.json({ success: 1, token })
 
 	// if(user) {
 	// 	const passCompare = req.body.password === user.password;
@@ -362,7 +372,15 @@ app.post('/login', async ( req, res ) => {
 
 
 
-app.listen(port, (error) => {
+// app.listen(port, (error) => {
+// 	if (!error) {
+// 		console.log(`Server is running on port: ${port}`);
+// 	} else {
+// 		console.log("Server failed to start");
+// 	}
+// });
+
+https.createServer(options, app).listen(port, (error) => {
 	if (!error) {
 		console.log(`Server is running on port: ${port}`);
 	} else {
