@@ -1,4 +1,5 @@
-const port = 443;
+// const port = 443;
+// const port = 443;
 
 const https = require('https');
 const express = require("express"); // Express framework for building web applications
@@ -8,40 +9,49 @@ const jwt = require("jsonwebtoken"); // JSON Web Token for user authentication a
 const multer = require("multer"); // Multer for handling file uploads
 const path = require("path"); // Path module for working with file and directory paths
 const cors = require("cors"); // CORS middleware for enabling cross-origin resource sharing
-const dotenv = require("dotenv"); // Dotenv for loading environment variables from a .env file into process.env
 const fs = require('fs'); // File System module for working with the file system
 
-dotenv.config(); // Loading environment variables from a .env file into process.env
 
-const dbUsername = process.env.DB_USERNAME;
-const dbPassword = process.env.DB_PASSWORD;
-const dbDelete = process.env.DB_DELETE;
+const config = require('./config');
 
-const options = {
-	key: fs.readFileSync('/etc/letsencrypt/live/backend.ecomm.adriannyc.dev/privkey.pem'),
-	cert: fs.readFileSync('/etc/letsencrypt/live/backend.ecomm.adriannyc.dev/fullchain.pem')
-	// key: fs.readFileSync('./tmp/key.pem'),
-	// cert: fs.readFileSync('./tmp/cert.pem')
-};
 
 app.use(express.json()); // Adding middleware to parse JSON data in the request body
+
 app.use(cors()); // Adding CORS middleware to allow cross-origin requests
 
 
 // Database Connection with MongoDB
-mongoose.connect(`mongodb+srv://${dbUsername}:${dbPassword}@cluster0.jnmzfx6.mongodb.net/e-commerce`);
+mongoose.connect(`mongodb+srv://${config.dbUsername}:${config.dbPassword}@cluster0.jnmzfx6.mongodb.net/e-commerce`);
 
 // API Creation
 
 app.get("/", (req, res) => {
-	res.send("Express App is running")
+	res.send(`<p>Express App is running</p>
+				<p>NODE_ENV = ${process.env.NODE_ENV}</p>`);
 })
+
+function formatDate(date) {
+	const mm = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based in JavaScript
+	const dd = String(date.getDate()).padStart(2, '0');
+	const yy = String(date.getFullYear())
+	const hh = String(date.getHours()).padStart(2, '0');
+	const min = String(date.getMinutes()).padStart(2, '0');
+	const ss = String(date.getSeconds()).padStart(2, '0');
+
+	return `${mm}-${dd}-${yy}_${hh}${min}${ss}`;
+  }
+
+  const date = new Date();
+  console.log(formatDate(date)); // Outputs the date in mmddyy_hhmmss format
 
 // Image Storage Engine
 const multerStorage = multer.diskStorage({
 	destination: "./uploads/images",
 	filename: (req, file, cb) => {
-		return cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
+		const formattedDate = formatDate(new Date());
+		console.log(formattedDate);
+
+		return cb(null, `${file.fieldname}_${formattedDate}${path.extname(file.originalname)}`);
 	}
 })
 
@@ -51,62 +61,124 @@ const upload = multer({ storage: multerStorage });
 // Serving Images from the Uploads Directory
 app.use("/images", express.static("uploads/images"));
 
+
+
 // Creating Upload Endpoint for Images
 app.post("/upload", upload.single("product"), (req, res) => {
+	// console.log(req)
 	res.json({
 		success: 1,
-		image_url: `http://localhost:${port}/images/${req.file.filename}`
+		image_url: `http://localhost:${config.port}/images/${req.file.filename}`
 	})
 });
 
-// Schema for Creating Products
 
-const Product = mongoose.model("Product", {
+// Schema for Inventroy
+const InventorySchema = mongoose.Schema({
+	xs: {
+		type: Number,
+		default: 0
+	},
+	s: {
+		type: Number,
+		default: 0
+	},
+	m: {
+		type: Number,
+		default: 0
+	},
+	l: {
+		type: Number,
+		default: 0
+	},
+	xl: {
+		type: Number,
+		default: 0
+	}
+});
+const Inventory = mongoose.model("Inventory", InventorySchema);
+
+// Schema for Creating Products
+// const Product = mongoose.model("Product", {
+const ProductSchema = mongoose.Schema({
 	id: {
 		type: Number,
-		required: false,
+		required: false
 	},
 	name: {
 		type: String,
-		required: true,
+		required: true
 	},
 	image: {
 		type: String,
-		required: true,
+		required: true
 	},
 	category: {
 		type: String,
-		required: true,
+		required: true
 	},
-	new_price: {
+	description: {
+		type: String,
+		default: "A lightweight, usually knitted pullover sweater that is worn over a shirt, polo, or t-shirt to provide additional warmth and comfort."
+	},
+	inventory: {
+		type: InventorySchema,
+	},
+	retail_price: {
 		type: Number,
 		required: true,
 	},
-	old_price: {
+	sale_price: {
 		type: Number,
-		required: true,
+		// required: false,
 	},
-	date: {
+	date_added: {
+		type: Date,
+		default: Date.now
+	},
+	date_modified: {
 		type: Date,
 		default: Date.now
 	},
 	available: {
-		type: Boolean,
-		default: true,
+		type: Number,
 	}
-
+	// available: {
+	// 	type: Boolean,
+	// }
 });
+ProductSchema.pre('save', function (next) {
+	console.log('---------------------------------');
+	// // Convert the inventory object to an array of counts
+	// const counts = Object.values(this.inventory);
+	// console.log(counts);
+
+	// Extract the size counts from the inventory
+	const count = [this.inventory.xs, this.inventory.s, this.inventory.m, this.inventory.l, this.inventory.xl].reduce((a,b)=>a+b, 0);
+
+	// Set the available property to true if any count is more than 0, false otherwise
+	// this.available = counts.some(count => count > 0);
+	this.available = count;
+	// console.log('Available:', this.available);
+	// console.log('---------------------------------');
+	next();
+});
+const Product = mongoose.model("Product", ProductSchema);
+
 
 // Add Product
-app.post("/addproduct", async (req, res) => {
+app.post("/add_product", async (req, res) => {
 
 	// Validate user inputs
-	if (!req.body.name || !req.body.image || !req.body.category || !req.body.old_price || !req.body.new_price) {
+	// if (!req.body.name || !req.body.image || !req.body.category || !req.body.retail_price || !req.body.description) {
+	if (!req.body.name || !req.body.image || !req.body.category || !req.body.retail_price ) {
+		console.log('Missing required fields')
 		return res.status(400).json({ success: 0, message: 'Missing required fields' });
 	}
 
-	if (isNaN(req.body.old_price) || isNaN(req.body.new_price)) {
-		return res.status(400).send({ error: 'Invalid price value' });
+	if (isNaN(req.body.retail_price) ) {
+		console.log('Invalid price value')
+		return res.status(400).send({ success: 0, error: 'Invalid retail_price value' });
 	}
 
 	let products = await Product.find({}).catch((error) => {
@@ -120,8 +192,10 @@ app.post("/addproduct", async (req, res) => {
 		let last_product = last_product_array[0];
 		id = last_product.id + 1;
 	} else {
-		id = 1;
+		id = 1001;
 	}
+
+	const sale_price = ( !req.body.sale_price || isNaN(req.body.sale_price) || req.body.sale_price <= 0 ) ? null : req.body.sale_price ;
 
 	const product = new Product({
 		// id: req.body.id,
@@ -129,8 +203,16 @@ app.post("/addproduct", async (req, res) => {
 		name: req.body.name,
 		image: req.body.image,
 		category: req.body.category,
-		old_price: req.body.old_price,
-		new_price: req.body.new_price,
+		// description: req.body.description,
+		retail_price: req.body.retail_price,
+		sale_price: sale_price,
+		inventory: {
+			xs: req.body.xs || 10,
+			s: req.body.s || 10,
+			m: req.body.m || 10,
+			l: req.body.l || 10,
+			xl: req.body.xl || 10,
+		}
 	});
 
 	await product.save().catch((error) => {
@@ -138,28 +220,61 @@ app.post("/addproduct", async (req, res) => {
 		return res.status(500).json({ success: 0, message: error.message });
 	});
 
-	res.json({
-		success: 1,
-		generated_id: product._id,
+	// const prod = {
+	// 	_id: "60d5ec9af682f49d49d1bc9d",
+	// 	name: 'Sample Product',
+	// 	category: 'Sample Category',
+	// 	description: 'This is a sample product.',
+	// 	image: 'http://example.com/sample.jpg',
+	// 	price: 100,
+	// 	newPrice: 80,
+	// 	inventory: {
+	// 		xs: 0,
+	// 		s: 0,
+	// 		m: 5,
+	// 		l: 0,
+	// 		xl: 0,
+	// 	},
+	// 	dateAdded: '2022-01-01T00:00:00.000Z',
+	// 	dateModified: '2022-01-01T00:00:00.000Z',
+	// 	__v: 0  // This is used by Mongoose for versioning. You don't need to set this field manually.
+	// }
+	// const totalCount = Object.values(prod.inventory).reduce((a, b) => a + b, 0);
+	const totalCount = 	[product.inventory.xs, product.inventory.s, product.inventory.m, product.inventory.l, product.inventory.xl].reduce((a, b) => a + b, 0);
+
+
+	const productSaved = {
 		id: product.id,
 		name: product.name,
-	})
+		category: product.category,
+		available: product.available,
+		count: totalCount,
+	};
 
 	console.log(product);
-	console.log(`\nProduct Saved: ${product._id} - ${product.id} - ${product.name}`);
+
+	res.json({
+		success: 1,
+		...productSaved,
+	});
+
+	// console.log(`\nProduct Saved: ${product._id} - ${product.id} - ${product.name}`);
+	console.log(`\nProduct Saved:`);
+	// console.log(productSaved);
+	console.log(product);
 })
 
 // Delete All Products
-app.delete("/deleteallproducts", async (req, res) => {
+app.delete("/delete_all_product", async (req, res) => {
 	try {
 		const passwordForDelete = req.body.password;
 
-		if (passwordForDelete === dbDelete) {
+		if (passwordForDelete === config.dbDelete) {
 			await Product.deleteMany({}).catch((error) => {
 				console.log(error);
-				return res.status(500).json({ success: 0, message: error.message });
+				return res.status(400).json({ success: 0, message: error.message });
 			});
-			res.json({
+			res.status(200).json({
 				success: 1,
 				message: "All products deleted successfully",
 			});
@@ -175,7 +290,7 @@ app.delete("/deleteallproducts", async (req, res) => {
 });
 
 // Delete Product by ID
-app.delete("/removeproduct", async (req, res) => {
+app.delete("/remove_product", async (req, res) => {
 
 	if (!req.body.id) {
 		return res.status(400).json({ success: 0, message: "Missing required fields" });
@@ -192,7 +307,7 @@ app.delete("/removeproduct", async (req, res) => {
 	}
 
 	console.log(product.image);
-	const toDelete = String(product.image).replace(`http://localhost:${port}/images`, '');
+	const toDelete = String(product.image).replace(`http://localhost:${config.port}/images`, '');
 	console.log(toDelete);
 
 
@@ -227,27 +342,121 @@ app.delete("/removeproduct", async (req, res) => {
 })
 
 // Get All Products
-app.get("/allproducts", async (req, res) => {
-	const allProducts = await Product.find({}).catch(error => {
+app.get("/all_product", async (req, res) => {
+
+	// console.log('All products fetched from ', req.ip);
+	// console.log('All products fetched from ', req);
+
+	// 200 OK: The request was successful, and the response body contains the representation of the requested resources.
+
+	// 204 No Content: The request was successful, but there's no representation to return (i.e. the response is empty).
+
+	// 400 Bad Request: The server could not understand the request due to invalid syntax.
+
+	// 401 Unauthorized: The client must authenticate itself to get the requested response.
+
+	// 403 Forbidden: The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource.
+
+	// 404 Not Found: The server can not find the requested resource.
+
+	// 500 Internal Server Error: The server has encountered a situation it doesn't know how to handle.
+
+	// 502 Bad Gateway: The server, while acting as a gateway or proxy, received an invalid response from the upstream server it accessed in attempting to fulfill the request.
+
+	// 503 Service Unavailable: The server is not ready to handle the request. Common causes are a server that is down for maintenance or that is overloaded.
+	const allProduct = await Product.find({}).catch(error => {
 		console.log(error);
 		return res.status(500).json({ success: 0, message: error.message });
 	});
 
-	if (!allProducts) {
+	if (!allProduct) {
 		return res.status(404).json({ success: 0, message: "Unknown error fetching all products" });
 	}
 
-	if (allProducts.length === 0) {
-		// return res.status(200).json({ success: 1, message: "No products found" });
-		return res.status(200).json([]);
+	if (allProduct.length === 0) {
+		// return res.status(204).json();
+		return res.status(200).json({ success: 0, message: "No products found", all_product: allProduct });
 	}
 
-	console.log(`All products fetched: ${allProducts.length} products`);
-	// console.log(allProducts.map((product) => `id: ${product.id}: ${product.name}`));
+	// console.log(`All products fetched: ${allProduct.length} products`);
+	// const data = allProduct.map((product) => ({
+	// 	id: product.id,
+	// 	name: product.name,
+	// 	category: product.category,
+	// }));
 
-	res.status(200).send(allProducts);
+	// console.log(data);
 
-	// console.log(allProducts);
+	// res.status(200).send(allProducts);
+	// res.status(200).send({ success: 1, message: "Products found", all_product: allProduct });
+
+	// const selectedProductMap = new Map(Array.from(allProduct).map(([id, product]) => {
+	// 	// Choose the key-value pairs you want to send
+	// 	return [id, {
+	// 		id: product.id,
+	// 		name: product.name,
+	// 		category: product.category,
+	// 	}];
+	// }));
+
+	// console.log('All products fetched', allProduct);
+	const omittedProductMap = allProduct.map((product) => {
+		// Convert the Mongoose document into a plain JavaScript object
+		const productObject = product.toObject();
+
+		// Destructure the inventory object separately to exclude its _id
+		const { _id: inventoryId, ...inventoryWithoutId } = productObject.inventory;
+
+		// Replace the original inventory object with the one without _id
+		productObject.inventory = inventoryWithoutId;
+
+		// Choose the properties you want to omit from the main product object
+		const { _id, __v, id, date_added, date_modified, ...productWithoutId } = productObject;
+
+		return [product.id, productWithoutId];
+	  });
+	console.log('All products fetched');
+
+	res.status(200).send({ success: 1, message: "Products found", all_product: omittedProductMap });
+
+
+	// const shoesBool = allProduct.some(product => product.category === "Shoes");
+	// console.log('there is shoe category: ', shoesBool);
+
+
+	const prod = {
+		_id: "60d5ec9af682f49d49d1bc9d",
+		name: 'Sample Product',
+		category: 'Sample Category',
+		description: 'This is a sample product.',
+		image: 'http://example.com/sample.jpg',
+		price: 100,
+		newPrice: 80,
+		inventory: {
+			xs: 0,
+			s: 0,
+			m: 5,
+			l: 0,
+			xl: 0,
+		},
+		dateAdded: '2022-01-01T00:00:00.000Z',
+		dateModified: '2022-01-01T00:00:00.000Z',
+		__v: 0  // This is used by Mongoose for versioning. You don't need to set this field manually.
+	}
+
+
+
+	// const sizes = Object.values(prod.inventory).map(variable => variable.size);
+	// const counts = Object.values(prod.inventory).map(count => count.count);
+
+
+
+	// console.log(sizes)
+	// console.log(counts)
+
+
+	// const test2 = Object.values(this.size).some(count => count > 0);
+
 })
 
 
@@ -279,16 +488,21 @@ const User = mongoose.model("User", {
 app.post('/signup', async (req, res) => {
 
 	if (!req.body.username || !req.body.email || !req.body.password) {
-		return res.status(400).json({ success: 0, message: "Missing required fields" });
+		const errorMessage = "400: Missing required fields";
+		console.log(errorMessage);
+		return res.status(400).json({ success: 0, message: errorMessage });
 	}
 
 	let check = await User.findOne({ email: req.body.email }).catch((error) => {
-		console.log(error)
-		return res.status(500).json({ success: 0, message: error.message });
+		const errorMessage = `500: ${error.message}`;
+		console.log(errorMessage);
+		return res.status(500).json({ success: 0, message: errorMessage });
 	});
 
 	if (check) {
-		return res.status(400).json({ success: 0, message: "Email is already in use" });
+		const errorMessage = "409: Email is already in use";
+		console.log(errorMessage);
+		return res.status(409).json({ success: 0, message: errorMessage });
 	}
 	let cart = {};
 
@@ -304,8 +518,9 @@ app.post('/signup', async (req, res) => {
 	})
 
 	await user.save().catch((error) => {
-		console.log(error);
-		return res.status(500).json({ success: 0, message: error.message });
+		const errorMessage = `500: ${error.message}`;
+		console.log(errorMessage);
+		return res.status(500).json({ success: 0, message: errorMessage });
 	}).then(res => {
 		console.log(`User: ${user.email} saved successfully`);
 	})
@@ -327,66 +542,77 @@ app.post('/signup', async (req, res) => {
 // Creating Endpoint for User Login
 app.post('/login', async (req, res) => {
 	if (!req.body.email || !req.body.password) {
-		return res.status(400).json({ success: 0, message: "Missing required fields" })
+		const errorMessage = "400: Missing required fields";
+		console.log(errorMessage);
+		return res.status(400).json({ success: 0, message: errorMessage });
 	}
 
 	let user = await User.findOne({ email: req.body.email }).catch((error) => {
-		console.log(error)
-		return res.status(500).json({ success: 0, message: error.message });
-	})
+		const errorMessage = `500: ${error.message}`;
+		console.log(errorMessage);
+		return res.status(500).json({ success: 0, message: errorMessage });
+	});
 
 	if (!user) {
-		return res.status(400).json({ success: 0, message: "User not found" })
+		const errorMessage = "404: User not found";
+		console.log(errorMessage);
+		return res.status(404).json({ success: 0, message: errorMessage });
 	}
+
 	const passCompare = req.body.password === user.password;
 	if (!passCompare) {
-		return res.status(400).json({ success: 0, message: "Invalid password" })
+		const errorMessage = "401: Invalid password";
+		console.log(errorMessage);
+		return res.status(401).json({ success: 0, message: errorMessage });
 	}
+
 	const data = {
 		user: {
 			id: user.id
 		}
 	}
+
 	const token = jwt.sign(data, 'secret_ecomm');
-	res.json({ success: 1, token })
-
-	// if(user) {
-	// 	const passCompare = req.body.password === user.password;
-	// 	if(passCompare) {
-	// 		const data = {
-	// 			user: {
-	// 				id: user.id
-	// 			}
-	// 		}
-	// 		const token = jwt.sign(data, 'secret_ecommm');
-	// 		res.json({success:1, token})
-	// 	}
-	// 	else {
-	// 		return res.status(400).json({ success: 0, message: "Invalid password" })
-	// 	}
-	// }
-	// else {
-	// 	return res.status(400).json({ success: 0, message: "User not found" })
-	// }
+	console.log("Login successful");
+	res.json({ success: 1, token });
 });
 
 
+app.get("/new_collections", async (req, res) => {
+	let products = await Product.find({});
+	let newCollections = products.slice(1).slice(-8);
+})
 
-// app.listen(port, (error) => {
-// 	if (!error) {
-// 		console.log(`Server is running on port: ${port}`);
-// 	} else {
-// 		console.log("Server failed to start");
-// 	}
-// });
 
-https.createServer(options, app).listen(port, (error) => {
-	if (!error) {
-		console.log(`Server is running on port: ${port}`);
-	} else {
-		console.log("Server failed to start");
-	}
-});
+
+
+
+if (process.env.NODE_ENV === 'production') {
+	// Production server setup
+	const options = {
+		// Your HTTPS options here (e.g., SSL certificate paths)
+		key: fs.readFileSync('/etc/letsencrypt/live/backend.ecomm.adriannyc.dev/privkey.pem'),
+		cert: fs.readFileSync('/etc/letsencrypt/live/backend.ecomm.adriannyc.dev/fullchain.pem')
+	};
+	https.createServer(options, app).listen(config.port, (error) => {
+		if (!error) {
+			console.log(`Server is running on port: ${config.port}`);
+			console.log(`NODE_ENV = ${process.env.NODE_ENV}`);
+		} else {
+			console.error("Server failed to start");
+		}
+	});
+} else {
+	// Development server setup
+	app.listen(config.port, (error) => {
+		if (!error) {
+			console.log(`Server is running on port: ${config.port}`);
+			console.log(`NODE_ENV = ${process.env.NODE_ENV}`);
+		} else {
+			console.error("Server failed to start");
+		}
+	});
+}
 
 process.on("uncaughtException", (error) => {
 	console.log(error);
