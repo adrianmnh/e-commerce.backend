@@ -1,6 +1,3 @@
-// const port = 443;
-// const port = 443;
-
 const https = require('https');
 const express = require("express"); // Express framework for building web applications
 const app = express(); // Creating an instance of the Express application
@@ -39,18 +36,13 @@ function formatDate(date) {
 	const ss = String(date.getSeconds()).padStart(2, '0');
 
 	return `${mm}-${dd}-${yy}_${hh}${min}${ss}`;
-  }
-
-  const date = new Date();
-  console.log(formatDate(date)); // Outputs the date in mmddyy_hhmmss format
+}
 
 // Image Storage Engine
 const multerStorage = multer.diskStorage({
 	destination: "./uploads/images",
 	filename: (req, file, cb) => {
 		const formattedDate = formatDate(new Date());
-		console.log(formattedDate);
-
 		return cb(null, `${file.fieldname}_${formattedDate}${path.extname(file.originalname)}`);
 	}
 })
@@ -154,7 +146,7 @@ ProductSchema.pre('save', function (next) {
 	// console.log(counts);
 
 	// Extract the size counts from the inventory
-	const count = [this.inventory.xs, this.inventory.s, this.inventory.m, this.inventory.l, this.inventory.xl].reduce((a,b)=>a+b, 0);
+	const count = [this.inventory.xs, this.inventory.s, this.inventory.m, this.inventory.l, this.inventory.xl].reduce((a, b) => a + b, 0);
 
 	// Set the available property to true if any count is more than 0, false otherwise
 	// this.available = counts.some(count => count > 0);
@@ -171,12 +163,12 @@ app.post("/add_product", async (req, res) => {
 
 	// Validate user inputs
 	// if (!req.body.name || !req.body.image || !req.body.category || !req.body.retail_price || !req.body.description) {
-	if (!req.body.name || !req.body.image || !req.body.category || !req.body.retail_price ) {
+	if (!req.body.name || !req.body.image || !req.body.category || !req.body.retail_price) {
 		console.log('Missing required fields')
 		return res.status(400).json({ success: 0, message: 'Missing required fields' });
 	}
 
-	if (isNaN(req.body.retail_price) ) {
+	if (isNaN(req.body.retail_price)) {
 		console.log('Invalid price value')
 		return res.status(400).send({ success: 0, error: 'Invalid retail_price value' });
 	}
@@ -195,7 +187,7 @@ app.post("/add_product", async (req, res) => {
 		id = 1001;
 	}
 
-	const sale_price = ( !req.body.sale_price || isNaN(req.body.sale_price) || req.body.sale_price <= 0 ) ? null : req.body.sale_price ;
+	const sale_price = (!req.body.sale_price || isNaN(req.body.sale_price) || req.body.sale_price <= 0) ? null : req.body.sale_price;
 
 	const product = new Product({
 		// id: req.body.id,
@@ -240,7 +232,7 @@ app.post("/add_product", async (req, res) => {
 	// 	__v: 0  // This is used by Mongoose for versioning. You don't need to set this field manually.
 	// }
 	// const totalCount = Object.values(prod.inventory).reduce((a, b) => a + b, 0);
-	const totalCount = 	[product.inventory.xs, product.inventory.s, product.inventory.m, product.inventory.l, product.inventory.xl].reduce((a, b) => a + b, 0);
+	const totalCount = [product.inventory.xs, product.inventory.s, product.inventory.m, product.inventory.l, product.inventory.xl].reduce((a, b) => a + b, 0);
 
 
 	const productSaved = {
@@ -260,8 +252,6 @@ app.post("/add_product", async (req, res) => {
 
 	// console.log(`\nProduct Saved: ${product._id} - ${product.id} - ${product.name}`);
 	console.log(`\nProduct Saved:`);
-	// console.log(productSaved);
-	console.log(product);
 })
 
 // Delete All Products
@@ -414,7 +404,7 @@ app.get("/all_product", async (req, res) => {
 		const { _id, __v, id, date_added, date_modified, ...productWithoutId } = productObject;
 
 		return [product.id, productWithoutId];
-	  });
+	});
 	console.log('All products fetched');
 
 	res.status(200).send({ success: 1, message: "Products found", all_product: omittedProductMap });
@@ -585,6 +575,7 @@ app.get("/new_collections", async (req, res) => {
 
 
 
+const date = new Date();
 
 
 if (process.env.NODE_ENV === 'production') {
@@ -597,6 +588,7 @@ if (process.env.NODE_ENV === 'production') {
 	https.createServer(options, app).listen(config.port, (error) => {
 		if (!error) {
 			console.log(`Server is running on port: ${config.port}`);
+			console.log('Startup date', formatDate(date)); // Outputs the date in mmddyy_hhmmss format
 			console.log(`NODE_ENV = ${process.env.NODE_ENV}`);
 		} else {
 			console.error("Server failed to start");
@@ -607,6 +599,7 @@ if (process.env.NODE_ENV === 'production') {
 	app.listen(config.port, (error) => {
 		if (!error) {
 			console.log(`Server is running on port: ${config.port}`);
+			console.log('Startup date', formatDate(date)); // Outputs the date in mmddyy_hhmmss format
 			console.log(`NODE_ENV = ${process.env.NODE_ENV}`);
 		} else {
 			console.error("Server failed to start");
