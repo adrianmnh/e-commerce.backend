@@ -207,11 +207,11 @@ app.post("/add_product", async (req, res) => {
 		retail_price: req.body.retail_price,
 		sale_price: sale_price,
 		inventory: {
-			xs: req.body.xs || 10,
-			s: req.body.s || 10,
-			m: req.body.m || 10,
-			l: req.body.l || 10,
-			xl: req.body.xl || 10,
+			xs: req.body.xs,
+			s: req.body.s,
+			m: req.body.m,
+			l: req.body.l,
+			xl: req.body.xl,
 		}
 	});
 
