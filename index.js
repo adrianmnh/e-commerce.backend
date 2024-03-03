@@ -12,19 +12,27 @@ const fs = require('fs'); // File System module for working with the file system
 const config = require('./config');
 
 
-app.use(express.json()); // Adding middleware to parse JSON data in the request body
-
-app.use(cors()); // Adding CORS middleware to allow cross-origin requests
-
-
 // Database Connection with MongoDB
 mongoose.connect(`mongodb+srv://${config.dbUsername}:${config.dbPassword}@cluster0.jnmzfx6.mongodb.net/e-commerce`);
+
+app.use(express.json()); // Adding middleware to parse JSON data in the request body
+app.use(express.static('public'));
+app.use(cors()); // Adding CORS middleware to allow cross-origin requests
+
+const adminPanelRoutes = require('./admin/admin-panel');
+
+app.use('/admin', adminPanelRoutes);
 
 // API Creation
 
 app.get("/", (req, res) => {
-	res.send(`<p>Express App is running</p>
-				<p>NODE_ENV = ${process.env.NODE_ENV}</p>`);
+	res.send(`
+	<link rel="stylesheet" type="text/css" href="/styles.css">
+	<div class="container">
+	<p>Express App is running</p>
+	<p>NODE_ENV = ${process.env.NODE_ENV}</p>
+	</div>
+	`);
 })
 
 function formatDate(date) {
@@ -199,11 +207,11 @@ app.post("/add_product", async (req, res) => {
 		retail_price: req.body.retail_price,
 		sale_price: sale_price,
 		inventory: {
-			xs: req.body.xs,
-			s: req.body.s,
-			m: req.body.m,
-			l: req.body.l,
-			xl: req.body.xl,
+			xs: req.body.xs || 0,
+			s: req.body.s || 0,
+			m: req.body.m || 0,
+			l: req.body.l || 0,
+			xl: req.body.xl || 99,
 		}
 	});
 
@@ -331,29 +339,27 @@ app.delete("/remove_product", async (req, res) => {
 	})
 })
 
+// 200 OK: The request was successful, and the response body contains the representation of the requested resources.
+
+// 204 No Content: The request was successful, but there's no representation to return (i.e. the response is empty).
+
+// 400 Bad Request: The server could not understand the request due to invalid syntax.
+
+// 401 Unauthorized: The client must authenticate itself to get the requested response.
+
+// 403 Forbidden: The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource.
+
+// 404 Not Found: The server can not find the requested resource.
+
+// 500 Internal Server Error: The server has encountered a situation it doesn't know how to handle.
+
+// 502 Bad Gateway: The server, while acting as a gateway or proxy, received an invalid response from the upstream server it accessed in attempting to fulfill the request.
+
+// 503 Service Unavailable: The server is not ready to handle the request. Common causes are a server that is down for maintenance or that is overloaded.
+
 // Get All Products
 app.get("/all_product", async (req, res) => {
 
-	// console.log('All products fetched from ', req.ip);
-	// console.log('All products fetched from ', req);
-
-	// 200 OK: The request was successful, and the response body contains the representation of the requested resources.
-
-	// 204 No Content: The request was successful, but there's no representation to return (i.e. the response is empty).
-
-	// 400 Bad Request: The server could not understand the request due to invalid syntax.
-
-	// 401 Unauthorized: The client must authenticate itself to get the requested response.
-
-	// 403 Forbidden: The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource.
-
-	// 404 Not Found: The server can not find the requested resource.
-
-	// 500 Internal Server Error: The server has encountered a situation it doesn't know how to handle.
-
-	// 502 Bad Gateway: The server, while acting as a gateway or proxy, received an invalid response from the upstream server it accessed in attempting to fulfill the request.
-
-	// 503 Service Unavailable: The server is not ready to handle the request. Common causes are a server that is down for maintenance or that is overloaded.
 	const allProduct = await Product.find({}).catch(error => {
 		console.log(error);
 		return res.status(500).json({ success: 0, message: error.message });
@@ -368,18 +374,6 @@ app.get("/all_product", async (req, res) => {
 		return res.status(200).json({ success: 0, message: "No products found", all_product: allProduct });
 	}
 
-	// console.log(`All products fetched: ${allProduct.length} products`);
-	// const data = allProduct.map((product) => ({
-	// 	id: product.id,
-	// 	name: product.name,
-	// 	category: product.category,
-	// }));
-
-	// console.log(data);
-
-	// res.status(200).send(allProducts);
-	// res.status(200).send({ success: 1, message: "Products found", all_product: allProduct });
-
 	// const selectedProductMap = new Map(Array.from(allProduct).map(([id, product]) => {
 	// 	// Choose the key-value pairs you want to send
 	// 	return [id, {
@@ -387,9 +381,7 @@ app.get("/all_product", async (req, res) => {
 	// 		name: product.name,
 	// 		category: product.category,
 	// 	}];
-	// }));
 
-	// console.log('All products fetched', allProduct);
 	const omittedProductMap = allProduct.map((product) => {
 		// Convert the Mongoose document into a plain JavaScript object
 		const productObject = product.toObject();
@@ -405,14 +397,10 @@ app.get("/all_product", async (req, res) => {
 
 		return [product.id, productWithoutId];
 	});
-	console.log('All products fetched');
+
+	console.log('All products fetched', Array.from(omittedProductMap.map(([id, product]) => id)))
 
 	res.status(200).send({ success: 1, message: "Products found", all_product: omittedProductMap });
-
-
-	// const shoesBool = allProduct.some(product => product.category === "Shoes");
-	// console.log('there is shoe category: ', shoesBool);
-
 
 	const prod = {
 		_id: "60d5ec9af682f49d49d1bc9d",
@@ -423,7 +411,7 @@ app.get("/all_product", async (req, res) => {
 		price: 100,
 		newPrice: 80,
 		inventory: {
-			xs: 0,
+			xs: 1,
 			s: 0,
 			m: 5,
 			l: 0,
@@ -431,22 +419,23 @@ app.get("/all_product", async (req, res) => {
 		},
 		dateAdded: '2022-01-01T00:00:00.000Z',
 		dateModified: '2022-01-01T00:00:00.000Z',
-		__v: 0  // This is used by Mongoose for versioning. You don't need to set this field manually.
+		__v: 0
+	}
+})
+
+app.get("/product/:id", async (req, res) => {
+
+	const product = await Product.findOne({ id: req.params.id }).catch(error => {
+		console.log(error);
+		return res.status(500).json({ success: 0, message: error.message });
+	});
+
+	if (!product) {
+		return res.status(404).json({ success: 0, message: "Product not found" });
 	}
 
-
-
-	// const sizes = Object.values(prod.inventory).map(variable => variable.size);
-	// const counts = Object.values(prod.inventory).map(count => count.count);
-
-
-
-	// console.log(sizes)
-	// console.log(counts)
-
-
-	// const test2 = Object.values(this.size).some(count => count > 0);
-
+	console.log('1 Product fetched', product.id);
+	res.status(200).json({ success: 1, message: "Product found", product });
 })
 
 
