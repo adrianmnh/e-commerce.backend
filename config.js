@@ -9,6 +9,7 @@ const config = {
 		dbPassword: process.env.DB_PASSWORD,
 		dbDelete: process.env.DB_DELETE,
 		homepage: process.env.HOMEPAGE,
+		adminSecret: process.env.ADMIN_PANEL_SECRET
 	},
 
 	production: {
@@ -16,7 +17,8 @@ const config = {
 		dbUsername: process.env.DB_USERNAME,
 		dbPassword: process.env.DB_PASSWORD,
 		dbDelete: process.env.DB_DELETE,
-		homepage: process.env.HOMEPAGE
+		homepage: process.env.HOMEPAGE,
+		adminSecret: process.env.ADMIN_PANEL_SECRET
 		// Add more production-specific configurations if needed
 	}
 };
