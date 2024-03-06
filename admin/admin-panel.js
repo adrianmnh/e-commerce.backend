@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 // Add your admin panel routes here
 router.get("/", (req, res) => {
 	res.send(`
+	<title>Admin API</title>
 	<link rel="stylesheet" type="text/css" href="/styles.css">
 	<div class="container">
 	<p>Admin API</p>

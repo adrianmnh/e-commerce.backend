@@ -7,6 +7,8 @@ const multer = require("multer"); // Multer for handling file uploads
 const path = require("path"); // Path module for working with file and directory paths
 const cors = require("cors"); // CORS middleware for enabling cross-origin resource sharing
 const fs = require('fs'); // File System module for working with the file system
+const favicon = require('serve-favicon')
+
 
 
 const config = require('./config');
@@ -17,6 +19,8 @@ mongoose.connect(`mongodb+srv://${config.dbUsername}:${config.dbPassword}@cluste
 
 app.use(express.json()); // Adding middleware to parse JSON data in the request body
 app.use(express.static('public'));
+app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')))
+
 app.use(cors()); // Adding CORS middleware to allow cross-origin requests
 
 const adminPanelRoutes = require('./admin/admin-panel');
@@ -25,8 +29,12 @@ app.use('/admin', adminPanelRoutes);
 
 // API Creation
 
+{/* <link rel="icon" href="/favicon.ico"> */}
+
+
 app.get("/", (req, res) => {
 	res.send(`
+	<title>Server API</title>
 	<link rel="stylesheet" type="text/css" href="/styles.css">
 	<div class="container">
 	<p>Express App is running</p>
@@ -140,12 +148,13 @@ const ProductSchema = mongoose.Schema({
 		type: Date,
 		default: Date.now
 	},
-	available: {
+	in_stock: {
 		type: Number,
+	},
+	available: {
+		type: Boolean,
+		default: false
 	}
-	// available: {
-	// 	type: Boolean,
-	// }
 });
 ProductSchema.pre('save', function (next) {
 	console.log('---------------------------------');
@@ -156,9 +165,11 @@ ProductSchema.pre('save', function (next) {
 	// Extract the size counts from the inventory
 	const count = [this.inventory.xs, this.inventory.s, this.inventory.m, this.inventory.l, this.inventory.xl].reduce((a, b) => a + b, 0);
 
+	console.log(count);
 	// Set the available property to true if any count is more than 0, false otherwise
-	// this.available = counts.some(count => count > 0);
-	this.available = count;
+	this.in_stock = count;
+	this.available = count > 0
+
 	// console.log('Available:', this.available);
 	// console.log('---------------------------------');
 	next();
@@ -211,7 +222,7 @@ app.post("/add_product", async (req, res) => {
 			s: req.body.s || 0,
 			m: req.body.m || 0,
 			l: req.body.l || 0,
-			xl: req.body.xl || 99,
+			xl: req.body.xl || 0,
 		}
 	});
 
@@ -291,6 +302,7 @@ app.delete("/delete_all_product", async (req, res) => {
 app.delete("/remove_product", async (req, res) => {
 
 	if (!req.body.id) {
+		console.log('Missing required fields');
 		return res.status(400).json({ success: 0, message: "Missing required fields" });
 	}
 
@@ -357,6 +369,22 @@ app.delete("/remove_product", async (req, res) => {
 
 // 503 Service Unavailable: The server is not ready to handle the request. Common causes are a server that is down for maintenance or that is overloaded.
 
+const formattedProduct = (product) => {
+		// Convert the Mongoose document into a plain JavaScript object
+		const productObject = product.toObject();
+
+		// Destructure the inventory object separately to exclude its _id
+		const { _id: inventoryId, ...inventoryWithoutId } = productObject.inventory;
+
+		// Replace the original inventory object with the one without _id
+		productObject.inventory = inventoryWithoutId;
+
+		// Choose the properties you want to omit from the main product object
+		const { _id, __v, id, date_added, date_modified, ...productWithoutId } = productObject;
+
+		return [product.id, productWithoutId];
+}
+
 // Get All Products
 app.get("/all_product", async (req, res) => {
 
@@ -383,44 +411,32 @@ app.get("/all_product", async (req, res) => {
 	// 	}];
 
 	const omittedProductMap = allProduct.map((product) => {
-		// Convert the Mongoose document into a plain JavaScript object
-		const productObject = product.toObject();
-
-		// Destructure the inventory object separately to exclude its _id
-		const { _id: inventoryId, ...inventoryWithoutId } = productObject.inventory;
-
-		// Replace the original inventory object with the one without _id
-		productObject.inventory = inventoryWithoutId;
-
-		// Choose the properties you want to omit from the main product object
-		const { _id, __v, id, date_added, date_modified, ...productWithoutId } = productObject;
-
-		return [product.id, productWithoutId];
+		return formattedProduct(product);
 	});
 
 	console.log('All products fetched', Array.from(omittedProductMap.map(([id, product]) => id)))
 
 	res.status(200).send({ success: 1, message: "Products found", all_product: omittedProductMap });
 
-	const prod = {
-		_id: "60d5ec9af682f49d49d1bc9d",
-		name: 'Sample Product',
-		category: 'Sample Category',
-		description: 'This is a sample product.',
-		image: 'http://example.com/sample.jpg',
-		price: 100,
-		newPrice: 80,
-		inventory: {
-			xs: 1,
-			s: 0,
-			m: 5,
-			l: 0,
-			xl: 0,
-		},
-		dateAdded: '2022-01-01T00:00:00.000Z',
-		dateModified: '2022-01-01T00:00:00.000Z',
-		__v: 0
-	}
+	// const prod = {
+	// 	_id: "60d5ec9af682f49d49d1bc9d",
+	// 	name: 'Sample Product',
+	// 	category: 'Sample Category',
+	// 	description: 'This is a sample product.',
+	// 	image: 'http://example.com/sample.jpg',
+	// 	price: 100,
+	// 	newPrice: 80,
+	// 	inventory: {
+	// 		xs: 1,
+	// 		s: 0,
+	// 		m: 5,
+	// 		l: 0,
+	// 		xl: 0,
+	// 	},
+	// 	dateAdded: '2022-01-01T00:00:00.000Z',
+	// 	dateModified: '2022-01-01T00:00:00.000Z',
+	// 	__v: 0
+	// }
 })
 
 app.get("/product/:id", async (req, res) => {
@@ -435,7 +451,10 @@ app.get("/product/:id", async (req, res) => {
 	}
 
 	console.log('1 Product fetched', product.id);
-	res.status(200).json({ success: 1, message: "Product found", product });
+
+	const omittedProduct = formattedProduct(product);
+
+	res.status(200).json({ success: 1, message: "Product found", product: omittedProduct });
 })
 
 
