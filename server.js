@@ -380,7 +380,8 @@ const formattedProduct = (product) => {
 		productObject.inventory = inventoryWithoutId;
 
 		// Choose the properties you want to omit from the main product object
-		const { _id, __v, id, date_added, date_modified, ...productWithoutId } = productObject;
+		// const { _id, __v, id, date_added, date_modified, ...productWithoutId } = productObject;
+		const { _id, __v, date_added, date_modified, ...productWithoutId } = productObject;
 
 		return [product.id, productWithoutId];
 }
